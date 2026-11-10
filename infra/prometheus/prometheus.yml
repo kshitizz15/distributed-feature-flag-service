@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "backend-region-a"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend-region-a:8000"]
+
+  - job_name: "backend-region-b"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend-region-b:8000"]
+
+  - job_name: "nginx"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["nginx:80"]

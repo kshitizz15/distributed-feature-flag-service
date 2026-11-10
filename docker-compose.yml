@@ -1,0 +1,150 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ff-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-feature_flags}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-feature_flags}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis-region-a:
+    image: redis:7-alpine
+    container_name: ff-redis-a
+    ports:
+      - "${REDIS_A_PORT:-6380}:6379"
+    volumes:
+      - redis_a_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis-region-b:
+    image: redis:7-alpine
+    container_name: ff-redis-b
+    ports:
+      - "${REDIS_B_PORT:-6381}:6379"
+    volumes:
+      - redis_b_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend-region-a:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ff-backend-a
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_REGION: region-a
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-feature_flags}
+      REDIS_URL: redis://redis-region-a:6379/0
+      REDIS_PUBSUB_CHANNEL: feature-flags
+      PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-region-a:
+        condition: service_healthy
+    ports:
+      - "${REGION_A_PORT:-8001}:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  backend-region-b:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ff-backend-b
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_REGION: region-b
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-feature_flags}
+      REDIS_URL: redis://redis-region-b:6379/0
+      REDIS_PUBSUB_CHANNEL: feature-flags
+      PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-region-b:
+        condition: service_healthy
+    ports:
+      - "${REGION_B_PORT:-8002}:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ff-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - nginx
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ff-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend-region-a
+      - backend-region-b
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ff-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:11.1.5
+    container_name: ff-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  redis_a_data:
+  redis_b_data:
+  grafana_data:
