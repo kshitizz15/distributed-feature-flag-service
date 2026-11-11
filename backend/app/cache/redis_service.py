@@ -8,6 +8,8 @@ from typing import Any
 
 import redis
 
+from app.metrics import record_redis_cache_hit, record_redis_cache_miss
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,6 +59,7 @@ class RedisCacheService:
     def get_flag_config(self, flag_key: str, environment: str | None = None) -> dict[str, Any] | None:
         if self.redis_client is None:
             logger.warning("Redis cache miss for %s because Redis is unavailable", flag_key)
+            record_redis_cache_miss("flag_config")
             return None
 
         key = self._flag_cache_key(flag_key, environment)
@@ -64,19 +67,23 @@ class RedisCacheService:
             raw_value = self.redis_client.get(key)
         except Exception as exc:  # pragma: no cover - runtime defensive branch
             logger.warning("Redis cache read failed for %s: %s", key, exc)
+            record_redis_cache_miss("flag_config")
             return None
 
         if raw_value is None:
             logger.info("Redis cache miss for flag %s in region %s", flag_key, self.region)
+            record_redis_cache_miss("flag_config")
             return None
 
         try:
             payload = json.loads(raw_value)
         except (TypeError, ValueError) as exc:  # pragma: no cover - runtime defensive branch
             logger.warning("Malformed Redis cache payload for %s: %s", key, exc)
+            record_redis_cache_miss("flag_config")
             return None
 
         logger.info("Redis cache hit for flag %s in region %s", flag_key, self.region)
+        record_redis_cache_hit("flag_config")
         return payload
 
     def set_flag_config(self, flag_key: str, payload: dict[str, Any], environment: str | None = None, ttl: int = 300) -> None:
@@ -118,6 +125,7 @@ class RedisCacheService:
     def get_list_cache(self, environment: str | None = None) -> list[dict[str, Any]] | None:
         if self.redis_client is None:
             logger.warning("Redis list cache read skipped for environment %s because Redis is unavailable", environment)
+            record_redis_cache_miss("list_config")
             return None
 
         key = self._list_cache_key(environment)
@@ -125,19 +133,23 @@ class RedisCacheService:
             raw_value = self.redis_client.get(key)
         except Exception as exc:  # pragma: no cover - runtime defensive branch
             logger.warning("Redis list cache read failed for %s: %s", key, exc)
+            record_redis_cache_miss("list_config")
             return None
 
         if raw_value is None:
             logger.info("Redis list cache miss for environment %s in region %s", environment, self.region)
+            record_redis_cache_miss("list_config")
             return None
 
         try:
             payload = json.loads(raw_value)
         except (TypeError, ValueError) as exc:  # pragma: no cover - runtime defensive branch
             logger.warning("Malformed Redis list payload for %s: %s", key, exc)
+            record_redis_cache_miss("list_config")
             return None
 
         logger.info("Redis list cache hit for environment %s in region %s", environment, self.region)
+        record_redis_cache_hit("list_config")
         return payload
 
     def publish_flag_event(self, *, action: str, flag_key: str, region: str, environment: str | None = None, payload: dict[str, Any] | None = None) -> None:

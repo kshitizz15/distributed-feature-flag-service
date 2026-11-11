@@ -73,3 +73,4 @@ class FeatureFlagEvaluationResponse(BaseModel):
     enabled: bool
     percentage: float
     reason: str
+    region: str | None = None

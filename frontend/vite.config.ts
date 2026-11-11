@@ -1,10 +1,19 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: "0.0.0.0",
-    port: 3000
-  }
+  tanstackStart: {
+    server: { entry: "server" },
+  },
+  vite: {
+    server: {
+      proxy: {
+        "/prometheus": {
+          target: "http://localhost:9090",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/prometheus/, ""),
+        },
+      },
+    },
+  },
 });

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.cache import cache_service
 from app.database import get_db
+from app.metrics import record_evaluation
 from app.models import ConfigurationVersion, Environment, FeatureFlag, TargetingRule
 from app.schemas import (
     FeatureFlagCreate,
@@ -280,9 +281,10 @@ def delete_feature_flag(flag_key: str, db: Session = Depends(get_db)):
 @router.post("/evaluate", response_model=FeatureFlagEvaluationResponse)
 def evaluate_feature_flag_endpoint(payload: FeatureFlagEvaluationRequest, db: Session = Depends(get_db)):
     environment_name = payload.environment or "production"
+    record_evaluation(payload.flag_key, environment_name)
     cached_flag = cache_service.get_flag_config(payload.flag_key, environment_name)
     if cached_flag is not None:
-        result = _evaluate_cached_flag(cached_flag, payload.user_id, payload.default_value)
+        result = evaluate_feature_flag(cached_flag, payload.user_id, payload.default_value)
         return {
             "flag_key": result["flag_key"],
             "user_id": result["user_id"],
@@ -290,6 +292,7 @@ def evaluate_feature_flag_endpoint(payload: FeatureFlagEvaluationRequest, db: Se
             "enabled": result["enabled"],
             "percentage": result["percentage"],
             "reason": result["reason"],
+            "region": cache_service.region,
         }
 
     environment = db.execute(select(Environment).where(Environment.name == environment_name)).scalar_one_or_none()
@@ -313,4 +316,5 @@ def evaluate_feature_flag_endpoint(payload: FeatureFlagEvaluationRequest, db: Se
         "enabled": result["enabled"],
         "percentage": result["percentage"],
         "reason": result["reason"],
+        "region": cache_service.region,
     }
