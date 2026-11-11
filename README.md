@@ -1,37 +1,69 @@
 # Low-Latency Distributed Feature Flag Service
 
-This repository sets up the initial foundation for a distributed feature flag platform with:
+A distributed feature flag management platform designed to provide fast, reliable, and consistent feature evaluation across multiple backend regions.
 
-- React + TypeScript frontend
-- FastAPI backend
-- PostgreSQL primary database
-- Redis caching and Pub/Sub
-- Region A and Region B backend instances
-- Nginx load balancing
-- Prometheus and Grafana monitoring
-- Python SDK for local evaluation
-- Docker Compose for local development
+The platform allows developers to create, manage, configure, and evaluate feature flags through a web-based dashboard while maintaining low-latency access using Redis caching and regional backend instances.
 
-## Project structure
+## Features
 
-- `backend/` � FastAPI service
-- `frontend/` � React UI
-- `sdk/` � local Python SDK
-- `infra/` � NGINX, Prometheus, Grafana config
-- `docs/` � project docs
-- `load-tests/` � future load-testing artifacts
+- **Feature Flag Management:** Create, update, enable, disable, and manage feature flags.
+- **Multiple Environments:** Support for Development, Staging, and Production.
+- **Percentage Rollouts:** Gradually release features to a percentage of users.
+- **Targeting Rules:** Configure rules using equals, contains, and starts_with conditions.
+- **Stable Deterministic Bucketing:** Ensure consistent feature evaluation for the same user.
+- **Distributed Architecture:** Run multiple backend instances across Region A and Region B.
+- **Redis Caching:** Reduce database access and improve evaluation performance.
+- **Database Persistence:** Store feature flag configurations in PostgreSQL.
+- **Evaluation Playground:** Test feature flags for different users and environments.
+- **Monitoring:** Prometheus metrics and Grafana dashboards.
+- **Load Balancing:** Nginx routes incoming API requests to backend instances.
 
-## Local quick start
+## Technology Stack
 
-1. Copy `.env.example` to `.env`
-2. Start Docker services:
-   `docker compose up --build -d`
-3. Check:
-   - Frontend: http://localhost:3000
-   - Nginx: http://localhost:8080
-   - Prometheus: http://localhost:9090
-   - Grafana: http://localhost:3001
+| Layer | Technologies |
+|---|---|
+| Frontend | React, TypeScript, Vite, TanStack Start, Tailwind CSS |
+| Backend | Python, FastAPI |
+| Database | PostgreSQL |
+| Caching | Redis |
+| Load Balancing | Nginx |
+| Monitoring | Prometheus, Grafana |
+| Infrastructure | Docker, Docker Compose |
+| SDK | Python SDK |
 
-## Notes
+## System Architecture
 
-This is the initial infrastructure and project skeleton only. Application logic and feature-flag behavior will be implemented in subsequent steps.
+```text
+              USER
+                |
+                v
+       React + TypeScript UI
+                |
+                v
+          NGINX Gateway
+                |
+          Load Balancing
+           /         \
+          v           v
+     Region A       Region B
+     FastAPI        FastAPI
+        |              |
+      Redis          Redis
+        \              /
+         \            /
+          PostgreSQL
+                |
+          Prometheus
+                |
+             Grafana
+```
+
+## Project Structure
+
+```text
+distributed-feature-flag-service/
+│
+├── backend/              # FastAPI backend
+│   ├── app/
+│   │   ├── api/          # API endpoints
+│   │   ├── cache
